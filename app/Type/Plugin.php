@@ -36,10 +36,57 @@ class Plugin extends Types_Base {
 
 		// use hooks.
 		add_filter( 'plugins_api', array( $this, 'get_info' ), 20, 3 );
-		add_filter( 'site_transient_update_plugins', array( $this, 'run_update' ) );
-		add_action( 'upgrader_process_complete', array( $this, 'purge_transient_after_update' ), 10, 2 );
+		add_filter( 'pre_set_site_transient_update_plugins', array( $this, 'check' ), 100, 1 );
+		//add_filter( 'site_transient_update_plugins', array( $this, 'run_update' ) );
+		//add_action( 'upgrader_process_complete', array( $this, 'purge_transient_after_update' ), 10, 2 );
 		add_filter( 'all_plugins', array( $this, 'add_slug_to_plugin_in_list' ), 9999 );
-		add_filter( $this->config[1]->slug . '_pro_update_transient', array( $this, 'enable_auto_update_support' ) );
+		add_filter( $this->config->type[1]->slug . '_update_transient', array( $this, 'enable_auto_update_support' ) );
+	}
+
+	/**
+	 * Check for update.
+	 *
+	 * @param object $data
+	 *
+	 * @return object
+	 */
+	public function check( object $data ): object {
+		// bail if we are in development mode.
+		if ( wp_is_development_mode( 'plugin' ) ) {
+			//return $data;
+		}
+
+		// send request for update info.
+		$response = $this->vcs_handler->run();
+
+		// format the theme-data from GitHub to WordPress object.
+		if ( $response ) {
+			// bail if no asset is available.
+			if ( empty( $response->assets ) ) {
+				return $data;
+			}
+
+			// embed the plugin data function.
+			if ( ! function_exists( 'get_plugin_data' ) ) {
+				require_once ABSPATH . 'wp-admin/includes/plugin.php';
+			}
+			$plugin_data = \get_plugin_data( WP_PLUGIN_DIR . '/' . $this->config->type[1]->slug . '/' . $this->config->type[2]->file, false, false );
+
+			// get version from VCS.
+			$update = preg_replace( '/[^0-9.]/', '', $response->tag_name );
+
+			// only return a response if the new version number is higher than the current version.
+			if ( version_compare( $update, $plugin_data['Version'], '>' ) ) {
+				$res              = new stdClass();
+				$res->slug        = $this->config->type[1]->slug; // @phpstan-ignore property.notFound
+				$res->plugin      = plugin_basename( $this->config->type[1]->slug . '/' . $this->config->type[2]->file );
+				$res->new_version = $response->tag_name; // @phpstan-ignore property.notFound
+				$res->package     = $response->assets[0]->browser_download_url; // @phpstan-ignore property.notFound
+				$data->response[ $this->config->type[1]->slug . '/' . $this->config->type[2]->file ] = $res;
+			}
+		}
+
+		return $data;
 	}
 
 	/**
@@ -58,45 +105,40 @@ class Plugin extends Types_Base {
 		}
 
 		// do nothing if it is not our plugin.
-		if ( basename( plugin_basename( $this->config[0]->slug ) ) !== $args->slug ) { // @phpstan-ignore property.notFound
+		if ( basename( $this->config->type[1]->slug ) !== $args->slug ) { // @phpstan-ignore property.notFound
 			return $res;
 		}
 
 		// get update-info.
-		$remote = $this->vcs_handler->run();
+		$response = $this->vcs_handler->run();
 
 		// bail if no update info available.
-		if ( is_bool( $remote ) ) {
+		if ( is_bool( $response ) ) {
 			return $res;
 		}
 
-		$res = new stdClass();
+		// embed the plugin data function.
+		if ( ! function_exists( 'get_plugin_data' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		}
+		$plugin_data = \get_plugin_data( WP_PLUGIN_DIR . '/' . $this->config->type[1]->slug . '/' . $this->config->type[2]->file, false, false );
 
-		$res->name           = $remote->name; // @phpstan-ignore property.notFound
-		$res->slug           = $remote->slug; // @phpstan-ignore property.notFound
-		$res->version        = $remote->version; // @phpstan-ignore property.notFound
-		$res->tested         = $remote->tested; // @phpstan-ignore property.notFound
-		$res->requires       = $remote->requires; // @phpstan-ignore property.notFound
-		$res->author         = $remote->author; // @phpstan-ignore property.notFound
-		$res->author_profile = $remote->author_profile; // @phpstan-ignore property.notFound
-		$res->download_link  = $remote->download_url; // @phpstan-ignore property.notFound
-		$res->trunk          = $remote->download_url; // @phpstan-ignore property.notFound
-		$res->requires_php   = $remote->requires_php; // @phpstan-ignore property.notFound
-		$res->last_updated   = $remote->last_updated; // @phpstan-ignore property.notFound
+		$res = new stdClass();
+		$res->name           = $plugin_data['Name']; // @phpstan-ignore property.notFound
+		$res->slug           = $this->config->type[1]->slug; // @phpstan-ignore property.notFound
+		$res->version        = $response->tag_name; // @phpstan-ignore property.notFound
+		$res->author         = $response->author->login; // @phpstan-ignore property.notFound
+		$res->author_profile = $response->author->url; // @phpstan-ignore property.notFound
+		$res->download_link  = $response->assets[0]->browser_download_url; // @phpstan-ignore property.notFound
+		$res->trunk          = $response->assets[0]->browser_download_url; // @phpstan-ignore property.notFound
+		$res->requires_php   = $plugin_data['RequiresWP']; // @phpstan-ignore property.notFound
+		$res->last_updated   = $response->assets[0]->created_at; // @phpstan-ignore property.notFound
 
 		$res->sections = array(
-			'description'  => nl2br( $remote->sections->description ), // @phpstan-ignore property.notFound
-			'installation' => nl2br( $remote->sections->installation ), // @phpstan-ignore property.notFound
-			'changelog'    => nl2br( $remote->sections->changelog ), // @phpstan-ignore property.notFound
+			'description'  => nl2br( $plugin_data['Description'] ), // @phpstan-ignore property.notFound
 		);
 
-		if ( ! empty( $remote->banners ) ) {
-			$res->banners = array(
-				'low'  => $remote->banners->low,
-				'high' => $remote->banners->high,
-			);
-		}
-
+		// return resulting resource object with the plugin data.
 		return $res;
 	}
 

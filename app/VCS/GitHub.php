@@ -1,6 +1,6 @@
 <?php
 /**
- * File to handle updates from GitHub for this theme.
+ * File to handle updates from GitHub.
  *
  * @package easy-updates-from-vcs-for-wordpress
  */
@@ -74,26 +74,28 @@ class GitHub extends VCS_Base {
 	/**
 	 * Run the check for new version on this VCS.
 	 *
+	 * @source https://docs.github.com/de/rest/releases/releases?apiVersion=2022-11-28#get-the-latest-release
+	 *
 	 * @return object|bool
 	 */
 	public function run(): object|bool {
 		// get the actual cached data from update server.
-		$remote = get_transient( md5( wp_json_encode( $this->config ) ) );
+		$response = get_transient( md5( wp_json_encode( $this->config ) ) );
+		$response = false;
 
-		if ( false === $remote ) {
+		if ( false === $response ) {
 			// create URL for request.
-			$url = 'https://api.github.com/repos/' . $this->config[1]->user . '/' . $this->config[1]->repository . '/releases/latest';
+			$url = 'https://api.github.com/repos/' . $this->config->source[1]->user . '/' . $this->config->source[2]->repository . '/releases/latest';
 
 			// create HTTP header.
 			$args     = array(
 				'method'      => 'GET',
 				'httpversion' => '1.1',
 				'timeout'     => 30,
-				'redirection' => 0,
+				'redirection' => 10,
 				'headers'     => array(
-					'User-Agent: ' . $this->config[1]->user,
-					'Authorization: token ' . $this->config[1]->key,
-					'Accept: application/json',
+					'Accept' => 'application/vnd.github+json',
+					'Authorization' => 'Bearer ' . $this->config->source[3]->key,
 				),
 				'body'        => array(),
 			);
@@ -114,18 +116,18 @@ class GitHub extends VCS_Base {
 		}
 
 		// return boolean direct.
-		if ( is_bool( $remote ) ) {
-			return $remote;
+		if ( is_bool( $response ) ) {
+			return $response;
 		}
 
 		// return false if result is a wp-error as we got no usable data.
-		if ( is_wp_error( $remote ) ) {
+		if ( is_wp_error( $response ) ) {
 			return false;
 		}
 
 		// return the cached results from update-server.
 		try {
-			return json_decode( wp_remote_retrieve_body( $remote ), false, 512, JSON_THROW_ON_ERROR );
+			return json_decode( wp_remote_retrieve_body( $response ), false, 512, JSON_THROW_ON_ERROR );
 		} catch ( JsonException $e ) {
 			return false;
 		}

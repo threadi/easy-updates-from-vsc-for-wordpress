@@ -20,9 +20,9 @@ class Updates {
 	/**
 	 * The configuration.
 	 *
-	 * @var array<string,mixed>
+	 * @var YamlObject
 	 */
-	private array $config = array();
+	private YamlObject $config;
 
 	/**
 	 * Instance of actual object.
@@ -86,13 +86,7 @@ class Updates {
 		}
 
 		// get the configuration.
-		/** @noinspection PhpUndefinedFieldInspection */
-		$this->config = $yaml->config;
-
-		// bail if no config is set.
-		if ( empty( $this->config ) ) {
-			return;
-		}
+		$this->config = $yaml;
 
 		// get the active update handler.
 		$update_handler = false;
@@ -106,7 +100,7 @@ class Updates {
 			}
 
 			// bail if the object does not match the configured name.
-			if ( $this->config[1]->source !== $obj->get_name() ) {
+			if ( $this->config->source[0]->name !== $obj->get_name() ) {
 				continue;
 			}
 
@@ -130,7 +124,7 @@ class Updates {
 			}
 
 			// bail if the object does not match the configured name.
-			if ( $this->config[0]->type !== $obj->get_name() ) {
+			if ( $this->config->type[0]->name !== $obj->get_name() ) {
 				continue;
 			}
 
