@@ -8,6 +8,8 @@
 namespace easyUpdatesFromVcsForWordPress;
 
 // prevent direct access.
+use Dallgoot\Yaml\Types\YamlObject;
+
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -17,9 +19,9 @@ class VCS_Base {
 	/**
 	 * The configuration.
 	 *
-	 * @var array<string,mixed>
+	 * @var YamlObject
 	 */
-	protected array $config;
+	protected YamlObject $config;
 
 	/**
 	 * The name.
@@ -31,9 +33,9 @@ class VCS_Base {
 	/**
 	 * Constructor, not used as this a Singleton object.
 	 *
-	 * @param array<string,mixed> $config The configuration.
+	 * @param YamlObject $config The configuration.
 	 */
-	public function __construct( array $config ) {
+	public function __construct( YamlObject $config ) {
 		$this->config = $config;
 	}
 
