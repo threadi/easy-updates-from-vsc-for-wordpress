@@ -81,7 +81,7 @@ class Plugin extends Types_Base {
 				$res->slug        = $this->config->type[1]->slug; // @phpstan-ignore property.notFound
 				$res->plugin      = plugin_basename( $this->config->type[1]->slug . '/' . $this->config->type[2]->file );
 				$res->new_version = $response->tag_name; // @phpstan-ignore property.notFound
-				$res->package     = $response->assets[0]->browser_download_url; // @phpstan-ignore property.notFound
+				$res->package     = $response->assets[0]->url; // @phpstan-ignore property.notFound
 				$data->response[ $this->config->type[1]->slug . '/' . $this->config->type[2]->file ] = $res;
 			}
 		}
@@ -162,7 +162,7 @@ class Plugin extends Types_Base {
 
 		// do nothing in development mode.
 		if ( function_exists( 'wp_is_development_mode' ) && false !== wp_is_development_mode( 'plugin' ) ) {
-			return $transient;
+			//return $transient;
 		}
 
 		// get the request.
@@ -232,7 +232,7 @@ class Plugin extends Types_Base {
 	 * @return array<string,mixed>
 	 */
 	public function add_slug_to_plugin_in_list( array $plugins ): array {
-		$plugin_name = plugin_basename( $this->config[0]->slug );
+		$plugin_name = plugin_basename( $this->config->type[1]->slug . '/' . $this->config->type[2]->file );
 		if ( ! empty( $plugins[ $plugin_name ] ) ) {
 			$plugins[ $plugin_name ]['slug'] = basename( $plugin_name );
 		}
@@ -248,12 +248,12 @@ class Plugin extends Types_Base {
 	 */
 	public function enable_auto_update_support( stdClass $transient ): stdClass {
 		// add entry if our plugin is not in list.
-		if ( empty( $transient->no_update[ plugin_basename( $this->config[0]->slug ) ] ) ) {
-			$transient->no_update[ plugin_basename( $this->config[0]->slug ) ] = new stdClass();
+		if ( empty( $transient->no_update[ plugin_basename( $this->config->type[1]->slug . '/' . $this->config->type[2]->file ) ] ) ) {
+			$transient->no_update[ plugin_basename( $this->config->type[1]->slug . '/' . $this->config->type[2]->file ) ] = new stdClass();
 		}
 
 		// add the setting.
-		$transient->no_update[ plugin_basename( $this->config[0]->slug ) ]->{'enable-support'} = true;
+		$transient->no_update[ plugin_basename( $this->config->type[1]->slug . '/' . $this->config->type[2]->file ) ]->{'enable-support'} = true;
 
 		// return the resulting list.
 		return $transient;

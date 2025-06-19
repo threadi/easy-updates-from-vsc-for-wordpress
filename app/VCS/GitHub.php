@@ -39,6 +39,7 @@ class GitHub extends VCS_Base {
 
 		// misc.
 		add_filter( 'http_request_args', array( $this, 'allow_own_domain' ), 10, 2 );
+		add_filter( 'http_request_args', array( $this, 'add_credentials' ), 10, 2 );
 	}
 
 	/**
@@ -59,13 +60,33 @@ class GitHub extends VCS_Base {
 	/**
 	 * Allow the GitHub-URL for requests during update.
 	 *
+	 * @param array<string,mixed> $parsed_args The arguments for the request.
+	 * @param string              $url The URL to be requested.
+	 *
+	 * @return array<string,mixed>
+	 */
+	public function add_credentials( array $parsed_args, string $url ): array {
+		if ( str_starts_with( $url, 'https://api.github.com' ) && str_contains( $url, 'releases/assets/' ) ) {
+			if( ! isset( $parsed_args['headers'] ) ) {
+				$parsed_args['headers'] = array();
+			}
+			$parsed_args['headers']['Accept'] = 'application/octet-stream';
+			$parsed_args['headers']['Authorization'] = 'Bearer ' . $this->config->source[3]->key;
+			$parsed_args['body'] = array();
+		}
+		return $parsed_args;
+	}
+
+	/**
+	 * Allow the GitHub-URL for requests during update.
+	 *
 	 * @param bool   $return_value True if the domain in the URL is safe.
 	 * @param string $url The requested URL.
 	 *
 	 * @return bool
 	 */
 	public function allow_own_safe_domain( bool $return_value, string $url ): bool {
-		if ( strpos( $url, wp_parse_url( 'https://api.github.com', PHP_URL_HOST ) ) ) {
+		if ( str_starts_with( $url, 'https://api.github.com' ) ) {
 			return true;
 		}
 		return $return_value;
@@ -80,7 +101,7 @@ class GitHub extends VCS_Base {
 	 */
 	public function run(): object|bool {
 		// get the actual cached data from update server.
-		$response = get_transient( md5( wp_json_encode( $this->config ) ) );
+		//$response = get_transient( md5( wp_json_encode( $this->config ) ) );
 		$response = false;
 
 		if ( false === $response ) {
